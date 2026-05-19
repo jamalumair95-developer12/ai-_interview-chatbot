@@ -59,6 +59,10 @@ DEFAULT_SUGGESTIONS = [
     "Walk me through your most recent role",
 ]
 
+# st.chat_message only accepts valid emojis or presets; "✦" is not a valid emoji.
+USER_CHAT_AVATAR = "🧑‍💼"
+ASSISTANT_CHAT_AVATAR = "✨"
+
 
 def init_session_state() -> None:
     defaults = {
@@ -71,6 +75,7 @@ def init_session_state() -> None:
         "interview_prep": "",
         "pending_question": None,
         "show_upload_flash": False,
+        "indexing_resume": False,
     }
     for key, val in defaults.items():
         if key not in st.session_state:
@@ -84,14 +89,24 @@ def get_chain_manager() -> InterviewChainManager:
 
 
 def process_resume_upload(uploaded_file) -> None:
+    if st.session_state.get("indexing_resume"):
+        st.warning("Resume indexing is already in progress. Please wait.")
+        return
+
     try:
+        st.session_state.indexing_resume = True
         with st.spinner("Neural indexing in progress…"):
             content = uploaded_file.read()
             resume_text = read_resume_file(uploaded_file.name, content)
             save_uploaded_file(uploaded_file.name, content)
             candidate_name = extract_candidate_name(resume_text)
 
-            manager = get_chain_manager()
+            old_manager = st.session_state.chain_manager
+            if old_manager is not None:
+                old_manager.vector_store.clear()
+
+            st.session_state.chain_manager = InterviewChainManager()
+            manager = st.session_state.chain_manager
             manager.index_resume(resume_text, candidate_name)
 
             st.session_state.resume_text = resume_text
@@ -112,6 +127,8 @@ def process_resume_upload(uploaded_file) -> None:
         st.rerun()
     except Exception as exc:
         st.error(f"Could not process resume: {exc}")
+    finally:
+        st.session_state.indexing_resume = False
 
 
 def render_sidebar() -> None:
@@ -185,7 +202,7 @@ def render_suggestions() -> None:
 def render_chat_history() -> None:
     st.markdown('<div class="chat-area">', unsafe_allow_html=True)
     for msg in st.session_state.messages:
-        avatar = "🧑‍💼" if msg["role"] == "user" else "✦"
+        avatar = USER_CHAT_AVATAR if msg["role"] == "user" else ASSISTANT_CHAT_AVATAR
         with st.chat_message(msg["role"], avatar=avatar):
             st.markdown(msg["content"])
     st.markdown("</div>", unsafe_allow_html=True)
@@ -195,7 +212,7 @@ def stream_assistant_response(question: str) -> str:
     manager = get_chain_manager()
     history = get_chat_history_tuples(st.session_state.messages[:-1])
 
-    with st.chat_message("assistant", avatar="✦"):
+    with st.chat_message("assistant", avatar=ASSISTANT_CHAT_AVATAR):
         placeholder = st.empty()
         placeholder.markdown(render_typing_indicator(), unsafe_allow_html=True)
         full_response = ""
