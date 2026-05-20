@@ -1,0 +1,20 @@
+# Vercel ignore file
+node_modules
+.git
+.gitignore
+README.md
+.env
+.env.local
+.env.*.local
+*.md
+data/
+uploads/
+vector_db/
+.DS_Store
+__pycache__
+*.pyc
+*.pyo
+*.egg-info/
+.streamlit/
+.venv/
+venv/
