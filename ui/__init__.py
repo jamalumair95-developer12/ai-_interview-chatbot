@@ -1,6 +1,6 @@
 """Premium UI components."""
 
-from ui.components import (
+from .components import (
     inject_premium_theme,
     render_background_fx,
     render_empty_state,

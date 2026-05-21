@@ -8,11 +8,8 @@ import threading
 import time
 import weakref
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
-import chromadb
-from chromadb.config import Settings as ChromaSettings
-from langchain_community.vectorstores import Chroma
 from langchain_core.documents import Document
 
 from utils.embeddings import get_embeddings
@@ -33,8 +30,9 @@ def get_chroma_persist_dir() -> Path:
     return path
 
 
-def get_chroma_client_settings() -> ChromaSettings:
+def get_chroma_client_settings() -> Any:
     """Local dev settings: allow reset when re-indexing a resume."""
+    from chromadb.config import Settings as ChromaSettings
     return ChromaSettings(
         allow_reset=True,
         anonymized_telemetry=False,
@@ -50,7 +48,7 @@ class ResumeVectorStore:
     def __init__(self, collection_name: str = "resume_collection"):
         self.collection_name = collection_name
         self.persist_dir = get_chroma_persist_dir()
-        self._vectorstore: Optional[Chroma] = None
+        self._vectorstore: Optional[Any] = None
         ResumeVectorStore._instances.add(self)
 
     @classmethod
@@ -77,6 +75,8 @@ class ResumeVectorStore:
 
     def _clear_persist_dir(self) -> None:
         """Remove persisted vectors (caller must hold _index_lock)."""
+        import chromadb
+        
         ResumeVectorStore._close_all_instances()
         gc.collect()
         time.sleep(0.1)
@@ -112,8 +112,10 @@ class ResumeVectorStore:
         with _index_lock:
             self._clear_persist_dir()
 
-    def build_from_text(self, resume_text: str, metadata: Optional[dict] = None) -> Chroma:
+    def build_from_text(self, resume_text: str, metadata: Optional[dict] = None) -> Any:
         """Chunk resume, embed, and persist to Chroma."""
+        from langchain_community.vectorstores import Chroma
+        
         with _index_lock:
             self._clear_persist_dir()
             chunks = split_resume_text(resume_text)
@@ -133,8 +135,10 @@ class ResumeVectorStore:
             logger.info("Built Chroma index with %d documents.", len(documents))
             return self._vectorstore
 
-    def load(self) -> Optional[Chroma]:
+    def load(self) -> Optional[Any]:
         """Load existing Chroma store from disk."""
+        from langchain_community.vectorstores import Chroma
+        
         if not any(self.persist_dir.iterdir()):
             return None
         embeddings = get_embeddings()
