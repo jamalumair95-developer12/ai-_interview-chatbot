@@ -14,17 +14,30 @@ LEGACY_MODEL = "llama3-70b-8192"
 FALLBACK_MODEL = "llama-3.3-70b-versatile"
 
 
+def get_api_key() -> str:
+    """Get API key from Streamlit secrets or environment."""
+    try:
+        import streamlit as st
+        if hasattr(st, 'secrets') and 'GROQ_API_KEY' in st.secrets:
+            return st.secrets['GROQ_API_KEY']
+    except (ImportError, Exception):
+        pass
+    
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key:
+        raise EnvironmentError(
+            "GROQ_API_KEY is not set. Add it to Streamlit Cloud secrets or your .env file."
+        )
+    return api_key
+
+
 def get_groq_model_name() -> str:
     return os.getenv("GROQ_MODEL", DEFAULT_MODEL)
 
 
 def create_llm(streaming: bool = True, temperature: float = 0.3) -> ChatGroq:
     """Instantiate ChatGroq with API key from environment."""
-    api_key = os.getenv("GROQ_API_KEY")
-    if not api_key:
-        raise EnvironmentError(
-            "GROQ_API_KEY is not set. Add it to your .env file."
-        )
+    api_key = get_api_key()
     model = get_groq_model_name()
     logger.info("Initializing Groq LLM: %s (streaming=%s)", model, streaming)
     return ChatGroq(
@@ -46,7 +59,7 @@ def invoke_with_fallback(llm: ChatGroq, messages: list) -> str:
         if "decommissioned" in err or "not found" in err or "model" in err:
             logger.warning("Primary model failed, trying fallback: %s", exc)
             fallback = ChatGroq(
-                groq_api_key=os.getenv("GROQ_API_KEY"),
+                groq_api_key=get_api_key(),
                 model_name=FALLBACK_MODEL,
                 temperature=llm.temperature,
                 streaming=False,
@@ -80,7 +93,7 @@ def stream_llm_response(
         if "decommissioned" in err or "not found" in err:
             logger.warning("Streaming failed on primary model, using fallback.")
             fallback = ChatGroq(
-                groq_api_key=os.getenv("GROQ_API_KEY"),
+                groq_api_key=get_api_key(),
                 model_name=FALLBACK_MODEL,
                 temperature=0.3,
                 streaming=True,
